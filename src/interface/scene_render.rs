@@ -9,7 +9,7 @@ use winit::{
     window::Window,
 };
 
-pub trait RenderDevice: 'static + Sized {
+pub trait SceneRender: 'static + Sized {
     const SRGB: bool = true;
 
     fn optional_features() -> wgpu::Features {
@@ -144,7 +144,7 @@ impl SurfaceWrapper {
     /// us to wait until we recieve the `Resumed` event to do so.
     fn pre_adapter(&mut self, instance: &Instance, window: Arc<Window>) {
         if cfg!(target_arch = "wasm32") {
-            self.surface = Some(instance.create_surface(window).unwrap());
+            self.surface = Some(unsafe { instance.create_surface(&window) }.unwrap());
         }
     }
 
@@ -174,7 +174,7 @@ impl SurfaceWrapper {
 
         // We didn't create the surface in pre_adapter, so we need to do so now.
         if !cfg!(target_arch = "wasm32") {
-            self.surface = Some(context.instance.create_surface(window).unwrap());
+            self.surface = Some(unsafe { context.instance.create_surface(&window) }.unwrap());
         }
 
         // From here on, self.surface should be Some.
@@ -253,7 +253,7 @@ struct RenderDeviceContext {
 }
 impl RenderDeviceContext {
     /// Initializes the render_device context.
-    async fn init_async<E: RenderDevice>(surface: &mut SurfaceWrapper, window: Arc<Window>) -> Self {
+    async fn init_async<E: SceneRender>(surface: &mut SurfaceWrapper, window: Arc<Window>) -> Self {
         log::info!("Initializing wgpu...");
 
         let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(|| wgpu::Backends::PRIMARY);
@@ -354,7 +354,7 @@ impl FrameCounter {
     }
 }
 
-async fn start<E: RenderDevice>(title: &str) {
+async fn start<E: SceneRender>(title: &str) {
     init_logger();
     let window_loop = EventLoopWrapper::new(title);
     let mut surface = SurfaceWrapper::new();
@@ -458,7 +458,7 @@ async fn start<E: RenderDevice>(title: &str) {
     );
 }
 
-pub fn run<E: RenderDevice>(title: &'static str) {
+pub fn run<E: SceneRender>(title: &'static str) {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             wasm_bindgen_futures::spawn_local(async move { start::<E>(title).await })

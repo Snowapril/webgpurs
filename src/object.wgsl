@@ -1,5 +1,6 @@
 struct VertexOutput {
     @location(0) tex_coord: vec2<f32>,
+    @location(1) normal: vec3<f32>,
     @builtin(position) position: vec4<f32>,
 };
 
@@ -14,6 +15,7 @@ fn vs_main(
 ) -> VertexOutput {
     var result: VertexOutput;
     result.tex_coord = tex_coord;
+    result.normal = vec3<f32>(0.0, 1.0, 0.0);
     result.position = transform * position;
     return result;
 }
