@@ -1,4 +1,4 @@
-use crate::interface;
+use crate::render_client::render_device;
 use bytemuck::{Pod, Zeroable};
 use std::{borrow::Cow, f32::consts, mem};
 use wgpu::util::DeviceExt;
@@ -103,7 +103,7 @@ impl CubeSceneRenderer {
     }
 }
 
-impl interface::scene_render::SceneRender for CubeSceneRenderer {
+impl render_device::RenderDevice for CubeSceneRenderer {
     fn optional_features() -> wgpu::Features {
         wgpu::Features::POLYGON_MODE_LINE
     }
@@ -219,7 +219,7 @@ impl interface::scene_render::SceneRender for CubeSceneRenderer {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("object.wgsl"))),
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader/object.wgsl"))),
         });
 
         let vertex_buffers = [wgpu::VertexBufferLayout {
