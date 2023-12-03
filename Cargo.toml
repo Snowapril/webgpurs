@@ -21,6 +21,9 @@ png = "0.17.10"
 web-time = "0.2.3"
 glium = "0.26"
 obj-rs = { version = "0.6", features = ["glium"] }
+e57 = "0.9.0"
+anyhow = "1"
+ryu = "1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.7"

@@ -219,7 +219,7 @@ impl render_device::RenderDevice for CubeSceneRenderer {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader/object.wgsl"))),
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("../shader/object.wgsl"))),
         });
 
         let vertex_buffers = [wgpu::VertexBufferLayout {

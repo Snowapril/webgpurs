@@ -1,5 +1,6 @@
-mod cube_scene_renderer;
+mod point_cloud;
 mod render_client;
+mod samples;
 mod utils;
 
 use std::sync::Arc;
@@ -163,5 +164,5 @@ pub fn run<E: render_device::RenderDevice>(title: &'static str) {
 }
 
 fn main() {
-    run::<cube_scene_renderer::CubeSceneRenderer>("cube");
+    run::<samples::cube_scene_renderer::CubeSceneRenderer>("cube");
 }
