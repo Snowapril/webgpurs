@@ -122,7 +122,9 @@ pub trait RenderDevice: 'static + Sized {
         queue: &wgpu::Queue,
     );
 
-    fn update(&mut self, event: WindowEvent);
+    fn prcess_event(&mut self, event: WindowEvent);
+
+    fn update_render(&mut self, device: &wgpu::Device, queue: &wgpu::Queue);
 
     fn render(&mut self, view: &wgpu::TextureView, device: &wgpu::Device, queue: &wgpu::Queue);
 }

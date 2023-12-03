@@ -1,6 +1,6 @@
-use crate::render_client::render_device;
+use crate::render_client::{camera::Camera, camera_controller::CameraController, render_device};
 use bytemuck::{Pod, Zeroable};
-use std::{borrow::Cow, f32::consts, mem};
+use std::{borrow::Cow, cell::RefCell, f32::consts, mem, rc::Rc};
 use wgpu::util::DeviceExt;
 
 #[repr(C)]
@@ -89,6 +89,8 @@ pub struct CubeSceneRenderer {
     uniform_buf: wgpu::Buffer,
     pipeline: wgpu::RenderPipeline,
     pipeline_wire: Option<wgpu::RenderPipeline>,
+    camera: Rc<RefCell<Camera>>,
+    camera_controller: CameraController,
 }
 
 impl CubeSceneRenderer {
@@ -196,7 +198,7 @@ impl render_device::RenderDevice for CubeSceneRenderer {
         let mx_total = Self::generate_matrix(config.width as f32 / config.height as f32);
         let mx_ref: &[f32; 16] = mx_total.as_ref();
         let uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Uniform Buffer"),
+            label: Some("MVP Uniform Buffer"),
             contents: bytemuck::cast_slice(mx_ref),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -304,6 +306,12 @@ impl render_device::RenderDevice for CubeSceneRenderer {
             None
         };
 
+        let camera = Rc::new(RefCell::new(Camera {
+            eye: glam::Vec3::new(0.0, 0.0, -3.0),
+            aspect: config.width as f32 / config.height as f32,
+            ..Default::default()
+        }));
+        let camera_controller = CameraController::new(0.01, camera.clone());
         // Done
         CubeSceneRenderer {
             vertex_buf,
@@ -313,11 +321,24 @@ impl render_device::RenderDevice for CubeSceneRenderer {
             uniform_buf,
             pipeline,
             pipeline_wire,
+            camera,
+            camera_controller,
         }
     }
 
-    fn update(&mut self, _event: winit::event::WindowEvent) {
-        //empty
+    fn prcess_event(&mut self, event: winit::event::WindowEvent) {
+        self.camera_controller.process_input(&event);
+    }
+
+    fn update_render(&mut self, _device: &wgpu::Device, queue: &wgpu::Queue) {
+        self.camera_controller.update_camera(0.0);
+
+        let view_proj = self.camera.borrow().build_view_proj_matrix();
+        queue.write_buffer(
+            &self.uniform_buf,
+            0,
+            bytemuck::cast_slice(view_proj.as_ref()),
+        );
     }
 
     fn resize(
@@ -326,9 +347,7 @@ impl render_device::RenderDevice for CubeSceneRenderer {
         _device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) {
-        let mx_total = Self::generate_matrix(config.width as f32 / config.height as f32);
-        let mx_ref: &[f32; 16] = mx_total.as_ref();
-        queue.write_buffer(&self.uniform_buf, 0, bytemuck::cast_slice(mx_ref));
+        self.camera.borrow_mut().aspect = config.width as f32 / config.height as f32;
     }
 
     fn render(&mut self, view: &wgpu::TextureView, device: &wgpu::Device, queue: &wgpu::Queue) {
@@ -360,6 +379,7 @@ impl render_device::RenderDevice for CubeSceneRenderer {
             rpass.set_index_buffer(self.index_buf.slice(..), wgpu::IndexFormat::Uint16);
             rpass.set_vertex_buffer(0, self.vertex_buf.slice(..));
             rpass.pop_debug_group();
+
             rpass.insert_debug_marker("Draw!");
             rpass.draw_indexed(0..self.index_count as u32, 0, 0..1);
             if let Some(ref pipe) = self.pipeline_wire {

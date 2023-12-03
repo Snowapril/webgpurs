@@ -135,6 +135,11 @@ async fn start<E: render_device::RenderDevice>(title: &str) {
                             ..wgpu::TextureViewDescriptor::default()
                         });
 
+                        render_device
+                            .as_mut()
+                            .unwrap()
+                            .update_render(&context.device, &context.queue);
+
                         render_device.as_mut().unwrap().render(
                             &view,
                             &context.device,
@@ -145,7 +150,7 @@ async fn start<E: render_device::RenderDevice>(title: &str) {
 
                         window_loop.window.request_redraw();
                     }
-                    _ => render_device.as_mut().unwrap().update(event),
+                    _ => render_device.as_mut().unwrap().prcess_event(event),
                 },
                 _ => {}
             }

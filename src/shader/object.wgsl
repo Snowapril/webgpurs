@@ -6,7 +6,7 @@ struct VertexOutput {
 
 @group(0)
 @binding(0)
-var<uniform> transform: mat4x4<f32>;
+var<uniform> mvp: mat4x4<f32>;
 
 @vertex
 fn vs_main(
@@ -16,7 +16,7 @@ fn vs_main(
     var result: VertexOutput;
     result.tex_coord = tex_coord;
     result.normal = vec3<f32>(0.0, 1.0, 0.0);
-    result.position = transform * position;
+    result.position = mvp * position;
     return result;
 }
 
