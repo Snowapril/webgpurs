@@ -5,6 +5,7 @@ mod utils;
 
 use std::sync::Arc;
 
+use point_cloud::point_cloud_renderer;
 use winit::{
     event::{Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
@@ -150,7 +151,7 @@ async fn start<E: render_device::RenderDevice>(title: &str) {
 
                         window_loop.window.request_redraw();
                     }
-                    _ => render_device.as_mut().unwrap().prcess_event(event),
+                    _ => render_device.as_mut().unwrap().process_event(event),
                 },
                 _ => {}
             }
@@ -169,5 +170,6 @@ pub fn run<E: render_device::RenderDevice>(title: &'static str) {
 }
 
 fn main() {
-    run::<samples::cube_scene_renderer::CubeSceneRenderer>("cube");
+    // run::<samples::cube_scene_renderer::CubeSceneRenderer>("cube");
+    run::<point_cloud_renderer::PointCloudRenderer>("PointCloudRenderer");
 }

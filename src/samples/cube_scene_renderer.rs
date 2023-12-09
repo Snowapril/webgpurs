@@ -326,7 +326,7 @@ impl render_device::RenderDevice for CubeSceneRenderer {
         }
     }
 
-    fn prcess_event(&mut self, event: winit::event::WindowEvent) {
+    fn process_event(&mut self, event: winit::event::WindowEvent) {
         self.camera_controller.process_input(&event);
     }
 
@@ -350,14 +350,19 @@ impl render_device::RenderDevice for CubeSceneRenderer {
         self.camera.borrow_mut().aspect = config.width as f32 / config.height as f32;
     }
 
-    fn render(&mut self, view: &wgpu::TextureView, device: &wgpu::Device, queue: &wgpu::Queue) {
-        let mut encoder =
+    fn render(
+        &mut self,
+        back_buffer_view: &wgpu::TextureView,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) {
+        let mut encoder: wgpu::CommandEncoder =
             device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view,
+                    view: back_buffer_view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {

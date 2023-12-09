@@ -1,11 +1,14 @@
 use anyhow::{Context, Result};
 use e57::{CartesianCoordinate, E57Reader};
 
-pub fn read_e57(e57_path: &'static str) -> Result<Vec<glam::Vec3>> {
+pub(crate) fn read_e57(e57_path: &String) -> Result<Vec<glam::Vec3>> {
     // Open E57 input file for reading
     let mut file = E57Reader::from_file(e57_path).context("Failed to open E57 file")?;
 
     let mut out_xyz_array: Vec<glam::Vec3> = Vec::new();
+
+    log::info!("start parsing {}...", e57_path);
+    let prev_time_point = web_time::Instant::now();
 
     // Loop over all point clouds in the E57 file
     let pointclouds = file.pointclouds();
@@ -44,6 +47,9 @@ pub fn read_e57(e57_path: &'static str) -> Result<Vec<glam::Vec3>> {
             // }
         }
     }
+
+    let elapsed = (web_time::Instant::now() - prev_time_point).as_secs_f64();
+    log::info!("parsing completed. {} elapsed", elapsed);
 
     Ok(out_xyz_array)
 }
