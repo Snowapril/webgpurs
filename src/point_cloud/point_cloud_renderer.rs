@@ -23,8 +23,51 @@ pub struct PointCloudRenderer {
 
 impl render_device::RenderDevice for PointCloudRenderer {
     fn optional_features() -> wgpu::Features {
-        wgpu::Features::BUFFER_BINDING_ARRAY | 
-        wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY
+        wgpu::Features::BUFFER_BINDING_ARRAY | wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY
+    }
+
+    fn required_downlevel_capabilities() -> wgpu::DownlevelCapabilities {
+        wgpu::DownlevelCapabilities {
+            flags: wgpu::DownlevelFlags::COMPUTE_SHADERS,
+            ..Default::default()
+        }
+    }
+
+    fn required_limits() -> wgpu::Limits {
+        // same for wgpu::Limits::downlevel_defaults()
+        wgpu::Limits {
+            max_texture_dimension_1d: 2048,
+            max_texture_dimension_2d: 2048,
+            max_texture_dimension_3d: 256,
+            max_texture_array_layers: 256,
+            max_bind_groups: 4,
+            max_bindings_per_bind_group: 1000,
+            max_dynamic_uniform_buffers_per_pipeline_layout: 8,
+            max_dynamic_storage_buffers_per_pipeline_layout: 4,
+            max_sampled_textures_per_shader_stage: 16,
+            max_samplers_per_shader_stage: 16,
+            max_storage_buffers_per_shader_stage: 4,
+            max_storage_textures_per_shader_stage: 4,
+            max_uniform_buffers_per_shader_stage: 12,
+            max_uniform_buffer_binding_size: 16 << 10,
+            max_storage_buffer_binding_size: 128 << 20,
+            max_vertex_buffers: 8,
+            max_vertex_attributes: 16,
+            max_vertex_buffer_array_stride: 2048,
+            max_push_constant_size: 0,
+            min_uniform_buffer_offset_alignment: 256,
+            min_storage_buffer_offset_alignment: 256,
+            max_inter_stage_shader_components: 60,
+            max_compute_workgroup_storage_size: 16352,
+            max_compute_invocations_per_workgroup: 256,
+            max_compute_workgroup_size_x: 256,
+            max_compute_workgroup_size_y: 256,
+            max_compute_workgroup_size_z: 64,
+            max_compute_workgroups_per_dimension: 65535,
+            max_buffer_size: 256 << 20,
+            max_non_sampler_bindings: 1_000_000,
+            ..Default::default()
+        }
     }
 
     fn init(
@@ -36,48 +79,68 @@ impl render_device::RenderDevice for PointCloudRenderer {
         let args = CommandLineArguments::parse();
         let point_cloud = Cell::new(PointCloud::from(&args.e57_path));
 
-        let bind_group_layout_global = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(64),
+        let bind_group_layout_global =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: None,
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(
+                                mem::size_of::<glam::Mat4>() as _
+                            ),
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(32),
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(
+                                (mem::size_of::<u32>() * 2usize) as _,
+                            ),
+                        },
+                        count: None,
                     },
-                    count: NonZeroU32::new(1u32),
-                },
-            ],
-        });
+                ],
+            });
 
-        let bind_group_layout_per_pass = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(96),
+        let bind_group_layout_per_pass =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: None,
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(
+                                mem::size_of::<glam::Vec3> as _,
+                            ),
+                        },
+                        count: None,
                     },
-                    count: NonZeroU32::new(1u32),
-                },
-            ],
-        });
-        
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(
+                                mem::size_of::<glam::Vec3> as _,
+                            ),
+                        },
+                        count: None,
+                    },
+                ],
+            });
+
         let bind_group_global = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &bind_group_layout_global,
             entries: &[
@@ -124,7 +187,12 @@ impl render_device::RenderDevice for PointCloudRenderer {
             entry_point: "render_point_cs",
         });
 
-        PointCloudRenderer { point_cloud, bind_group_global, bind_group_per_pass, pipeline }
+        PointCloudRenderer {
+            point_cloud,
+            bind_group_global,
+            bind_group_per_pass,
+            pipeline,
+        }
     }
 
     fn process_event(&mut self, _event: winit::event::WindowEvent) {
