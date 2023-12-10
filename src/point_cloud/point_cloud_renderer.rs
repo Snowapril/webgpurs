@@ -4,7 +4,7 @@ use crate::{
 };
 use bytemuck::{Pod, Zeroable};
 use clap::Parser;
-use std::{borrow::Cow, cell::Cell, f32::consts, mem};
+use std::{borrow::Cow, cell::Cell, f32::consts, mem, num::NonZeroU32};
 use wgpu::util::DeviceExt;
 
 #[derive(Parser)] // requires `derive` feature
@@ -16,11 +16,15 @@ struct CommandLineArguments {
 
 pub struct PointCloudRenderer {
     point_cloud: Cell<PointCloud>,
+    bind_group_global: wgpu::BindGroup,
+    bind_group_per_pass: wgpu::BindGroup,
+    pipeline: wgpu::ComputePipeline,
 }
 
 impl render_device::RenderDevice for PointCloudRenderer {
     fn optional_features() -> wgpu::Features {
-        wgpu::Features::POLYGON_MODE_LINE
+        wgpu::Features::BUFFER_BINDING_ARRAY | 
+        wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY
     }
 
     fn init(
@@ -32,6 +36,80 @@ impl render_device::RenderDevice for PointCloudRenderer {
         let args = CommandLineArguments::parse();
         let point_cloud = Cell::new(PointCloud::from(&args.e57_path));
 
+        let bind_group_layout_global = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(64),
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(32),
+                    },
+                    count: NonZeroU32::new(1u32),
+                },
+            ],
+        });
+
+        let bind_group_layout_per_pass = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(96),
+                    },
+                    count: NonZeroU32::new(1u32),
+                },
+            ],
+        });
+        
+        let bind_group_global = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &bind_group_layout_global,
+            entries: &[
+                //wgpu::BindGroupEntry {
+                //    binding: 0,
+                //    resource: uniform_buf.as_entire_binding(),
+                //},
+                //wgpu::BindGroupEntry {
+                //    binding: 1,
+                //    resource: wgpu::BindingResource::TextureView(&texture_view),
+                //},
+            ],
+            label: None,
+        });
+
+        let bind_group_per_pass = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &bind_group_layout_per_pass,
+            entries: &[
+                //wgpu::BindGroupEntry {
+                //    binding: 0,
+                //    resource: uniform_buf.as_entire_binding(),
+                //},
+            ],
+            label: None,
+        });
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: None,
+            bind_group_layouts: &[&bind_group_layout_global, &bind_group_layout_per_pass],
+            push_constant_ranges: &[],
+        });
+
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!(
@@ -39,7 +117,14 @@ impl render_device::RenderDevice for PointCloudRenderer {
             ))),
         });
 
-        PointCloudRenderer { point_cloud }
+        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: None,
+            layout: Some(&pipeline_layout),
+            module: &shader,
+            entry_point: "render_point_cs",
+        });
+
+        PointCloudRenderer { point_cloud, bind_group_global, bind_group_per_pass, pipeline }
     }
 
     fn process_event(&mut self, _event: winit::event::WindowEvent) {
