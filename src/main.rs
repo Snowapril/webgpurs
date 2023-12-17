@@ -1,11 +1,16 @@
+mod dvs;
+mod pass;
 mod point_cloud;
 mod render_client;
 mod samples;
+mod scene;
 mod utils;
 
 use std::sync::Arc;
 
+use dvs::deferred_voxel_shading;
 use point_cloud::point_cloud_renderer;
+use scene::obj_loader;
 use winit::{
     event::{Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
@@ -171,5 +176,8 @@ pub fn run<E: render_device::RenderDevice>(title: &'static str) {
 
 fn main() {
     // run::<samples::cube_scene_renderer::CubeSceneRenderer>("cube");
-    run::<point_cloud_renderer::PointCloudRenderer>("PointCloudRenderer");
+    //run::<point_cloud_renderer::PointCloudRenderer>("PointCloudRenderer");
+    scene::obj_loader::load_obj("./resources/cornell-box.obj");
+
+    run::<deferred_voxel_shading::DeferredVoxelShading>("DeferredVoxelShading");
 }
