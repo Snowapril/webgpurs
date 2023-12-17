@@ -177,7 +177,7 @@ pub fn run<E: render_device::RenderDevice>(title: &'static str) {
 fn main() {
     // run::<samples::cube_scene_renderer::CubeSceneRenderer>("cube");
     //run::<point_cloud_renderer::PointCloudRenderer>("PointCloudRenderer");
-    scene::obj_loader::load_obj("./resources/cornell-box.obj");
+    scene::obj_loader::load_obj("./resources/CornellBox-Original.obj");
 
     run::<deferred_voxel_shading::DeferredVoxelShading>("DeferredVoxelShading");
 }
