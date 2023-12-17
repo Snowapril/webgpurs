@@ -4,11 +4,15 @@
 
 This project is for test multiple wgpu applications with own framework.
 
-1. CubeSceneRenderer (![from wgpu sample](https://github.com/gfx-rs/wgpu/tree/trunk/examples/src/cube))
+## References
+
+1. CubeSceneRenderer ([from wgpu sample](https://github.com/gfx-rs/wgpu/tree/trunk/examples/src/cube))
 2. PointCloudRenderer
    1. https://www.magnopus.com/blog/how-we-render-extremely-large-point-clouds
    2. https://www.cg.tuwien.ac.at/research/publications/2022/SCHUETZ-2022-PCC/SCHUETZ-2022-PCC-paper.pdf#page=16&zoom=100,28,710
    3. https://arxiv.org/pdf/2104.07526.pdf
+3. Deferred Voxel Shading
+   1. https://jose-villegas.github.io/post/deferred_voxel_shading/
 
 ## How To Contribute
 
