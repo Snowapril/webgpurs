@@ -1,4 +1,10 @@
-use crate::{pass::render_pass, render_client::render_device};
+use crate::{
+    dvs::voxelization,
+    pass::render_pass,
+    render_client::{camera::Camera, camera_controller::CameraController, render_device},
+    scene::{self, scene_object_loader},
+};
+use anyhow::Result;
 use bytemuck::{Pod, Zeroable};
 use clap::Parser;
 use std::{
@@ -8,11 +14,20 @@ use std::{
     f32::consts,
     mem,
     num::NonZeroU32,
+    rc::Rc,
 };
 use wgpu::util::DeviceExt;
 
+#[derive(Parser)] // requires `derive` feature
+#[command(author, version, about, long_about = None)]
+struct CommandLineArguments {
+    #[arg(short = 'i')]
+    obj_path: String,
+}
 pub struct DeferredVoxelShading {
     passes: Vec<RefCell<Box<dyn render_pass::RenderPass>>>,
+    camera: Rc<RefCell<Camera>>,
+    camera_controller: CameraController,
 }
 
 impl render_device::RenderDevice for DeferredVoxelShading {
@@ -65,12 +80,36 @@ impl render_device::RenderDevice for DeferredVoxelShading {
     }
 
     fn init(
-        _config: &wgpu::SurfaceConfiguration,
-        _adapter: &wgpu::Adapter,
-        _device: &wgpu::Device,
-        _queue: &wgpu::Queue,
-    ) -> Self {
-        DeferredVoxelShading { passes: vec![] }
+        config: &wgpu::SurfaceConfiguration,
+        adapter: &wgpu::Adapter,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Self> {
+        let args = CommandLineArguments::parse();
+        let scene_objects = scene_object_loader::load_scene_objects(device, &args.obj_path)?;
+        let mut passes: Vec<RefCell<Box<dyn render_pass::RenderPass>>> = vec![];
+
+        let voxelization_pass = voxelization::VoxelizationPass::create_pass(
+            config,
+            adapter,
+            device,
+            queue,
+            scene_objects,
+        )?;
+        passes.push(RefCell::new(Box::new(voxelization_pass)));
+
+        let camera = Rc::new(RefCell::new(Camera {
+            eye: glam::Vec3::new(0.0, 0.0, -3.0),
+            aspect: config.width as f32 / config.height as f32,
+            ..Default::default()
+        }));
+        let camera_controller = CameraController::new(0.01, camera.clone());
+
+        Ok(DeferredVoxelShading {
+            passes,
+            camera,
+            camera_controller,
+        })
     }
 
     fn process_event(&mut self, event: winit::event::WindowEvent) {
@@ -80,6 +119,15 @@ impl render_device::RenderDevice for DeferredVoxelShading {
     }
 
     fn update_render(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        self.camera_controller.update_camera(0.0);
+
+        let view_proj = self.camera.borrow().build_view_proj_matrix();
+        queue.write_buffer(
+            &self.uniform_buf,
+            0,
+            bytemuck::cast_slice(view_proj.as_ref()),
+        );
+
         self.passes.iter().for_each(|pass| {
             pass.borrow_mut().update_render(device, queue);
         })
@@ -91,6 +139,8 @@ impl render_device::RenderDevice for DeferredVoxelShading {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) {
+        self.camera.borrow_mut().aspect = config.width as f32 / config.height as f32;
+
         self.passes.iter().for_each(|pass| {
             pass.borrow_mut().on_resized(config, device, queue);
         })
