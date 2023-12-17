@@ -1,11 +1,14 @@
 use crate::scene::scene_object;
 use anyhow::Result;
-use std::cell::Cell;
+use std::{fmt, path::Path};
 
-pub fn load_scene_objects(
+pub fn load_scene_objects<P>(
     device: &wgpu::Device,
-    obj_path: &'static str,
-) -> Result<Vec<scene_object::SceneObject>> {
+    obj_path: P,
+) -> Result<Vec<scene_object::SceneObject>>
+where
+    P: AsRef<Path> + fmt::Debug,
+{
     let (models, materials) = tobj::load_obj(&obj_path, &tobj::LoadOptions::default())?;
 
     let static_meshes = models
