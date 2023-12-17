@@ -1,4 +1,5 @@
 use crate::render_client::{camera::Camera, camera_controller::CameraController, render_device};
+use anyhow::Result;
 use bytemuck::{Pod, Zeroable};
 use std::{borrow::Cow, cell::RefCell, f32::consts, mem, rc::Rc};
 use wgpu::util::DeviceExt;
@@ -115,7 +116,7 @@ impl render_device::RenderDevice for CubeSceneRenderer {
         _adapter: &wgpu::Adapter,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-    ) -> Self {
+    ) -> Result<Self> {
         // Create the vertex and index buffers
         let vertex_size = mem::size_of::<Vertex>();
         let (vertex_data, index_data) = create_vertices();
@@ -313,7 +314,7 @@ impl render_device::RenderDevice for CubeSceneRenderer {
         }));
         let camera_controller = CameraController::new(0.01, camera.clone());
         // Done
-        CubeSceneRenderer {
+        Ok(CubeSceneRenderer {
             vertex_buf,
             index_buf,
             index_count: index_data.len(),
@@ -323,7 +324,7 @@ impl render_device::RenderDevice for CubeSceneRenderer {
             pipeline_wire,
             camera,
             camera_controller,
-        }
+        })
     }
 
     fn process_event(&mut self, event: winit::event::WindowEvent) {

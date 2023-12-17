@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::surface_wrapper;
+use anyhow::Result;
 use winit::{event::WindowEvent, window::Window};
 
 pub struct RenderDeviceContext {
@@ -113,7 +114,7 @@ pub trait RenderDevice: 'static + Sized {
         adapter: &wgpu::Adapter,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-    ) -> Self;
+    ) -> Result<Self>;
 
     fn resize(
         &mut self,

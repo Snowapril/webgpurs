@@ -88,12 +88,15 @@ async fn start<E: render_device::RenderDevice>(title: &str) {
 
                     // If we haven't created the render_device yet, do so now.
                     if render_device.is_none() {
-                        render_device = Some(E::init(
-                            surface.config(),
-                            &context.adapter,
-                            &context.device,
-                            &context.queue,
-                        ));
+                        render_device = Some(
+                            E::init(
+                                surface.config(),
+                                &context.adapter,
+                                &context.device,
+                                &context.queue,
+                            )
+                            .expect("Failed to initialize render device"),
+                        );
                     }
                 }
                 Event::Suspended => {

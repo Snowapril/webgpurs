@@ -2,6 +2,7 @@ use crate::{
     point_cloud::point_cloud::{Batch, PointCloud},
     render_client::render_device,
 };
+use anyhow::Result;
 use bytemuck::{Pod, Zeroable};
 use clap::Parser;
 use std::{borrow::Cow, cell::Cell, f32::consts, mem, num::NonZeroU32};
@@ -75,7 +76,7 @@ impl render_device::RenderDevice for PointCloudRenderer {
         _adapter: &wgpu::Adapter,
         device: &wgpu::Device,
         _queue: &wgpu::Queue,
-    ) -> Self {
+    ) -> Result<Self> {
         let args = CommandLineArguments::parse();
         let point_cloud = Cell::new(PointCloud::from(&args.e57_path));
 
@@ -187,12 +188,12 @@ impl render_device::RenderDevice for PointCloudRenderer {
             entry_point: "render_point_cs",
         });
 
-        PointCloudRenderer {
+        Ok(PointCloudRenderer {
             point_cloud,
             bind_group_global,
             bind_group_per_pass,
             pipeline,
-        }
+        })
     }
 
     fn process_event(&mut self, _event: winit::event::WindowEvent) {
