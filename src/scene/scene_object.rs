@@ -38,7 +38,7 @@ impl Default for Material {
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct VertexPod {
+pub struct VertexPod {
     position: [f32; 3],
     normal: [f32; 3],
     tex_coord: [f32; 2],
@@ -46,11 +46,13 @@ struct VertexPod {
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct MaterialPod {
+pub struct MaterialPod {
     ambient: [f32; 3],
     diffuse: [f32; 3],
     specular: [f32; 3],
     shininess: f32,
+    #[allow(dead_code)]
+    _padding: [f32; 6], // TODO(snowapril) : how to aligning struct not like this in rust lang
 }
 
 fn create_vertex_pod(pos: glam::Vec3, normal: glam::Vec3, tex_coord: glam::Vec2) -> VertexPod {
@@ -79,6 +81,7 @@ fn create_material_pod(material: &Material) -> MaterialPod {
             material.specular[2],
         ],
         shininess: material.shininess,
+        _padding: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     }
 }
 
@@ -95,7 +98,14 @@ impl SceneObject {
         let num_vertices = mesh.positions.len();
         let vertices = (0..num_vertices)
             .into_iter()
-            .map(|i| create_vertex_pod(mesh.positions[i], mesh.normals[i], mesh.uvs[i]))
+            // .map(|i| create_vertex_pod(mesh.positions[i], mesh.normals[i], mesh.uvs[i])) TODO(snowapril)
+            .map(|i| {
+                create_vertex_pod(
+                    mesh.positions[i],
+                    glam::Vec3::new(0.0, 1.0, 0.0),
+                    glam::Vec2::new(0.0, 0.0),
+                )
+            })
             .collect::<Vec<VertexPod>>();
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(format!("Vertex Buffer [ {} ]", mesh.name.as_str()).as_str()),
