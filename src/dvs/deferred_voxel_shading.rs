@@ -1,12 +1,13 @@
 use crate::{
     dvs::voxelization,
-    pass::render_pass,
+    pass::{black_board, render_context, render_pass},
     render_client::{camera::Camera, camera_controller::CameraController, render_device},
     scene::{self, scene_object_loader},
 };
 use anyhow::Result;
 use bytemuck::{Pod, Zeroable};
 use clap::Parser;
+use std::collections::HashMap;
 use std::{
     borrow::Cow,
     boxed::Box,
@@ -28,6 +29,8 @@ pub struct DeferredVoxelShading {
     passes: Vec<RefCell<Box<dyn render_pass::RenderPass>>>,
     camera: Rc<RefCell<Camera>>,
     camera_controller: CameraController,
+    render_context: RefCell<render_context::RenderContext>,
+    black_board: RefCell<black_board::BlackBoard>,
 }
 
 impl render_device::RenderDevice for DeferredVoxelShading {
@@ -89,15 +92,6 @@ impl render_device::RenderDevice for DeferredVoxelShading {
         let scene_objects = scene_object_loader::load_scene_objects(device, &args.obj_path)?;
         let mut passes: Vec<RefCell<Box<dyn render_pass::RenderPass>>> = vec![];
 
-        let voxelization_pass = voxelization::VoxelizationPass::create_pass(
-            config,
-            adapter,
-            device,
-            queue,
-            scene_objects,
-        )?;
-        passes.push(RefCell::new(Box::new(voxelization_pass)));
-
         let camera = Rc::new(RefCell::new(Camera {
             eye: glam::Vec3::new(0.0, 0.0, -3.0),
             aspect: config.width as f32 / config.height as f32,
@@ -105,14 +99,30 @@ impl render_device::RenderDevice for DeferredVoxelShading {
         }));
         let camera_controller = CameraController::new(0.01, camera.clone());
 
+        let voxelization_pass = voxelization::VoxelizationPass::create_pass(
+            config,
+            adapter,
+            device,
+            queue,
+            camera.clone(),
+            scene_objects,
+        )?;
+        passes.push(RefCell::new(Box::new(voxelization_pass)));
+
         Ok(DeferredVoxelShading {
             passes,
             camera,
             camera_controller,
+            render_context: RefCell::new(render_context::RenderContext {}),
+            black_board: RefCell::new(black_board::BlackBoard {
+                textures: HashMap::default(),
+            }),
         })
     }
 
     fn process_event(&mut self, event: winit::event::WindowEvent) {
+        self.camera_controller.process_input(&event);
+
         self.passes.iter().for_each(|pass| {
             pass.borrow_mut().process_event(event.clone());
         })
@@ -121,15 +131,9 @@ impl render_device::RenderDevice for DeferredVoxelShading {
     fn update_render(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
         self.camera_controller.update_camera(0.0);
 
-        let view_proj = self.camera.borrow().build_view_proj_matrix();
-        queue.write_buffer(
-            &self.uniform_buf,
-            0,
-            bytemuck::cast_slice(view_proj.as_ref()),
-        );
-
         self.passes.iter().for_each(|pass| {
-            pass.borrow_mut().update_render(device, queue);
+            pass.borrow_mut()
+                .update_render(device, queue, &self.black_board.borrow_mut());
         })
     }
 
@@ -153,7 +157,13 @@ impl render_device::RenderDevice for DeferredVoxelShading {
         queue: &wgpu::Queue,
     ) {
         self.passes.iter().for_each(|pass| {
-            pass.borrow_mut().render(back_buffer_view, device, queue);
+            pass.borrow_mut().render(
+                back_buffer_view,
+                device,
+                queue,
+                &self.render_context.borrow(),
+                &self.black_board.borrow_mut(),
+            );
         })
     }
 }

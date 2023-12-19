@@ -73,12 +73,30 @@ fn load_model(model: &tobj::Model) -> Result<scene_object::StaticMesh> {
         ))
     }
 
+    let mut indices: Vec<u32> = vec![];
+    let mut next_face = 0;
+    for face in 0..mesh.face_arities.len() {
+        let end = next_face + mesh.face_arities[face] as usize;
+
+        let face_indices = &mesh.indices[next_face..end];
+        indices.push(face_indices[0]);
+        indices.push(face_indices[1]);
+        indices.push(face_indices[2]);
+        indices.push(face_indices[2]);
+        indices.push(face_indices[1]);
+        indices.push(face_indices[3]);
+
+        next_face = end;
+    }
+    println!(" positions          = {:?}", positions);
+    println!(" indices          = {:?}", indices);
+
     Ok(scene_object::StaticMesh {
         name: model.name.clone(),
         positions,
         normals,
         uvs,
-        indices: mesh.indices.clone(),
+        indices : mesh.indices.clone(),
         material_id: mesh.material_id,
     })
 }

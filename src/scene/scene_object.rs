@@ -90,6 +90,7 @@ pub struct SceneObject {
     pub name: String,
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
+    pub num_indices: usize,
     pub material: wgpu::Buffer,
 }
 
@@ -117,7 +118,7 @@ impl SceneObject {
             contents: bytemuck::cast_slice(&mesh.indices),
             usage: wgpu::BufferUsages::INDEX,
         });
-
+        let num_indices = mesh.indices.len();
         let material_pod = create_material_pod(material);
         let material = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(format!("Material Buffer [ {} ]", mesh.name.as_str()).as_str()),
@@ -129,6 +130,7 @@ impl SceneObject {
             name: mesh.name.clone(),
             vertex_buffer,
             index_buffer,
+            num_indices,
             material,
         })
     }
