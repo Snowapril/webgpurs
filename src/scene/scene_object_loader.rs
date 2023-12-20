@@ -83,8 +83,8 @@ fn load_model(model: &tobj::Model) -> Result<scene_object::StaticMesh> {
         indices.push(face_indices[1]);
         indices.push(face_indices[2]);
         indices.push(face_indices[2]);
-        indices.push(face_indices[1]);
         indices.push(face_indices[3]);
+        indices.push(face_indices[0]);
 
         next_face = end;
     }
@@ -96,7 +96,7 @@ fn load_model(model: &tobj::Model) -> Result<scene_object::StaticMesh> {
         positions,
         normals,
         uvs,
-        indices : mesh.indices.clone(),
+        indices,
         material_id: mesh.material_id,
     })
 }

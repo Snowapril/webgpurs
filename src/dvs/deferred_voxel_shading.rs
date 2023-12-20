@@ -93,11 +93,12 @@ impl render_device::RenderDevice for DeferredVoxelShading {
         let mut passes: Vec<RefCell<Box<dyn render_pass::RenderPass>>> = vec![];
 
         let camera = Rc::new(RefCell::new(Camera {
-            eye: glam::Vec3::new(0.0, 0.0, -3.0),
+            eye: glam::Vec3::new(0.0, 1.0, 3.0),
+            dir : glam::Vec3::new(0.0, 0.0, 1.0),
             aspect: config.width as f32 / config.height as f32,
             ..Default::default()
         }));
-        let camera_controller = CameraController::new(0.01, camera.clone());
+        let camera_controller = CameraController::new(0.05, camera.clone());
 
         let voxelization_pass = voxelization::VoxelizationPass::create_pass(
             config,
