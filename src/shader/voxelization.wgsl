@@ -24,5 +24,6 @@ struct Material {
 
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4<f32>(vec3<f32>(vertex.position.w, vertex.position.w, vertex.position.w), 1.0);
+    let diffuse_faded : vec3<f32> = material.ambient * vertex.position.w;
+    return vec4<f32>(diffuse_faded, 1.0);
 }
