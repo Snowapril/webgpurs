@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    cell::{Cell, RefCell},
+    sync::Arc,
+};
 
 use crate::surface_wrapper;
 use anyhow::Result;
@@ -9,6 +12,7 @@ pub struct RenderDeviceContext {
     pub adapter: wgpu::Adapter,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
+    pub bind_group_layout_global: Cell<Option<wgpu::BindGroupLayout>>,
 }
 impl RenderDeviceContext {
     /// Initializes the render_device context.
@@ -82,6 +86,7 @@ impl RenderDeviceContext {
             adapter,
             device,
             queue,
+            bind_group_layout_global: Cell::new(None),
         }
     }
 }
@@ -111,26 +116,22 @@ pub trait RenderDevice: 'static + Sized {
 
     fn init(
         config: &wgpu::SurfaceConfiguration,
-        adapter: &wgpu::Adapter,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        device_context: &RefCell<RenderDeviceContext>,
     ) -> Result<Self>;
 
     fn resize(
         &mut self,
         config: &wgpu::SurfaceConfiguration,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        device_context: &RefCell<RenderDeviceContext>,
     );
 
     fn process_event(&mut self, event: WindowEvent);
 
-    fn update_render(&mut self, device: &wgpu::Device, queue: &wgpu::Queue);
+    fn update_render(&mut self, device_context: &RefCell<RenderDeviceContext>);
 
     fn render(
         &mut self,
         back_buffer_view: &wgpu::TextureView,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        device_context: &RefCell<RenderDeviceContext>,
     );
 }

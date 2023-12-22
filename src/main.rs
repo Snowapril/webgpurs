@@ -6,7 +6,7 @@ mod samples;
 mod scene;
 mod utils;
 
-use std::sync::Arc;
+use std::{cell::RefCell, sync::Arc};
 
 use dvs::deferred_voxel_shading;
 use point_cloud::point_cloud_renderer;
@@ -59,6 +59,7 @@ async fn start<E: render_device::RenderDevice>(title: &str) {
         window_loop.window.clone(),
     )
     .await;
+    let context = RefCell::new(context);
     let mut frame_counter = counter::FrameCounter::new();
 
     // We wait to create the render_device until we have a valid surface.
@@ -89,13 +90,8 @@ async fn start<E: render_device::RenderDevice>(title: &str) {
                     // If we haven't created the render_device yet, do so now.
                     if render_device.is_none() {
                         render_device = Some(
-                            E::init(
-                                surface.config(),
-                                &context.adapter,
-                                &context.device,
-                                &context.queue,
-                            )
-                            .expect("Failed to initialize render device"),
+                            E::init(surface.config(), &context)
+                                .expect("Failed to initialize render device"),
                         );
                     }
                 }
@@ -105,11 +101,10 @@ async fn start<E: render_device::RenderDevice>(title: &str) {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::Resized(size) => {
                         surface.resize(&context, size);
-                        render_device.as_mut().unwrap().resize(
-                            surface.config(),
-                            &context.device,
-                            &context.queue,
-                        );
+                        render_device
+                            .as_mut()
+                            .unwrap()
+                            .resize(surface.config(), &context);
 
                         window_loop.window.request_redraw();
                     }
@@ -133,7 +128,7 @@ async fn start<E: render_device::RenderDevice>(title: &str) {
                             },
                         ..
                     } if s == "r" => {
-                        println!("{:#?}", context.instance.generate_report());
+                        println!("{:#?}", context.borrow().instance.generate_report());
                     }
                     WindowEvent::RedrawRequested => {
                         frame_counter.update();
@@ -144,16 +139,9 @@ async fn start<E: render_device::RenderDevice>(title: &str) {
                             ..wgpu::TextureViewDescriptor::default()
                         });
 
-                        render_device
-                            .as_mut()
-                            .unwrap()
-                            .update_render(&context.device, &context.queue);
+                        render_device.as_mut().unwrap().update_render(&context);
 
-                        render_device.as_mut().unwrap().render(
-                            &view,
-                            &context.device,
-                            &context.queue,
-                        );
+                        render_device.as_mut().unwrap().render(&view, &context);
 
                         frame.present();
 

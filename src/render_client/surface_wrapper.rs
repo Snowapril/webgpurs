@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{cell::RefCell, sync::Arc};
 
 use wgpu::{Instance, Surface};
 use winit::{
@@ -57,7 +57,7 @@ impl SurfaceWrapper {
     /// Additionally, we configure the surface based on the (now valid) window size.
     pub fn resume(
         &mut self,
-        context: &render_device::RenderDeviceContext,
+        context: &RefCell<render_device::RenderDeviceContext>,
         window: Arc<Window>,
         srgb: bool,
     ) {
@@ -65,6 +65,7 @@ impl SurfaceWrapper {
         let window_size = window.inner_size();
         let width = window_size.width.max(1);
         let height = window_size.height.max(1);
+        let context = context.borrow();
 
         log::info!("Surface resume {window_size:?}");
 
@@ -99,7 +100,7 @@ impl SurfaceWrapper {
     /// Resize the surface, making sure to not resize to zero.
     pub fn resize(
         &mut self,
-        context: &render_device::RenderDeviceContext,
+        context: &RefCell<render_device::RenderDeviceContext>,
         size: PhysicalSize<u32>,
     ) {
         log::info!("Surface resize {size:?}");
@@ -108,20 +109,20 @@ impl SurfaceWrapper {
         config.width = size.width.max(1);
         config.height = size.height.max(1);
         let surface = self.surface.as_ref().unwrap();
-        surface.configure(&context.device, config);
+        surface.configure(&context.borrow().device, config);
     }
 
     /// Acquire the next surface texture.
     pub fn acquire(
         &mut self,
-        context: &render_device::RenderDeviceContext,
+        context: &RefCell<render_device::RenderDeviceContext>,
     ) -> wgpu::SurfaceTexture {
         let surface = self.surface.as_ref().unwrap();
 
         match surface.get_current_texture() {
             Ok(frame) => frame,
             Err(_) => {
-                surface.configure(&context.device, self.config());
+                surface.configure(&context.borrow().device, self.config());
                 surface
                     .get_current_texture()
                     .expect("Failed to acquire next surface texture!")

@@ -5,7 +5,13 @@ use crate::{
 use anyhow::Result;
 use bytemuck::{Pod, Zeroable};
 use clap::Parser;
-use std::{borrow::Cow, cell::Cell, f32::consts, mem, num::NonZeroU32};
+use std::{
+    borrow::Cow,
+    cell::{Cell, RefCell},
+    f32::consts,
+    mem,
+    num::NonZeroU32,
+};
 use wgpu::util::DeviceExt;
 
 #[derive(Parser)] // requires `derive` feature
@@ -73,78 +79,84 @@ impl render_device::RenderDevice for PointCloudRenderer {
 
     fn init(
         _config: &wgpu::SurfaceConfiguration,
-        _adapter: &wgpu::Adapter,
-        device: &wgpu::Device,
-        _queue: &wgpu::Queue,
+        device_context: &RefCell<render_device::RenderDeviceContext>,
     ) -> Result<Self> {
+        let device_context = device_context.borrow();
         let args = CommandLineArguments::parse();
         let point_cloud = Cell::new(PointCloud::from(&args.e57_path));
 
         let bind_group_layout_global =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: None,
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: wgpu::BufferSize::new(
-                                mem::size_of::<glam::Mat4>() as _
-                            ),
+            device_context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: None,
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: wgpu::BufferSize::new(
+                                    mem::size_of::<glam::Mat4>() as _,
+                                ),
+                            },
+                            count: None,
                         },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: wgpu::BufferSize::new(
-                                (mem::size_of::<u32>() * 2usize) as _,
-                            ),
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                has_dynamic_offset: false,
+                                min_binding_size: wgpu::BufferSize::new(
+                                    (mem::size_of::<u32>() * 2usize) as _,
+                                ),
+                            },
+                            count: None,
                         },
-                        count: None,
-                    },
-                ],
-            });
+                    ],
+                });
 
         let bind_group_layout_per_pass =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: None,
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: true },
-                            has_dynamic_offset: false,
-                            min_binding_size: wgpu::BufferSize::new(
-                                mem::size_of::<glam::Vec3> as _,
-                            ),
+            device_context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: None,
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: wgpu::BufferSize::new(
+                                    mem::size_of::<glam::Vec3> as _,
+                                ),
+                            },
+                            count: None,
                         },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: true },
-                            has_dynamic_offset: false,
-                            min_binding_size: wgpu::BufferSize::new(
-                                mem::size_of::<glam::Vec3> as _,
-                            ),
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: wgpu::BufferSize::new(
+                                    mem::size_of::<glam::Vec3> as _,
+                                ),
+                            },
+                            count: None,
                         },
-                        count: None,
-                    },
-                ],
-            });
+                    ],
+                });
 
-        let bind_group_global = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &bind_group_layout_global,
-            entries: &[
+        let bind_group_global =
+            device_context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    layout: &bind_group_layout_global,
+                    entries: &[
                 //wgpu::BindGroupEntry {
                 //    binding: 0,
                 //    resource: uniform_buf.as_entire_binding(),
@@ -154,39 +166,50 @@ impl render_device::RenderDevice for PointCloudRenderer {
                 //    resource: wgpu::BindingResource::TextureView(&texture_view),
                 //},
             ],
-            label: None,
-        });
+                    label: None,
+                });
 
-        let bind_group_per_pass = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &bind_group_layout_per_pass,
-            entries: &[
+        let bind_group_per_pass =
+            device_context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    layout: &bind_group_layout_per_pass,
+                    entries: &[
                 //wgpu::BindGroupEntry {
                 //    binding: 0,
                 //    resource: uniform_buf.as_entire_binding(),
                 //},
             ],
-            label: None,
-        });
+                    label: None,
+                });
 
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: None,
-            bind_group_layouts: &[&bind_group_layout_global, &bind_group_layout_per_pass],
-            push_constant_ranges: &[],
-        });
+        let pipeline_layout =
+            device_context
+                .device
+                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: None,
+                    bind_group_layouts: &[&bind_group_layout_global, &bind_group_layout_per_pass],
+                    push_constant_ranges: &[],
+                });
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!(
-                "../shader/render_point_cs.wgsl"
-            ))),
-        });
+        let shader = device_context
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!(
+                    "../shader/render_point_cs.wgsl"
+                ))),
+            });
 
-        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: None,
-            layout: Some(&pipeline_layout),
-            module: &shader,
-            entry_point: "render_point_cs",
-        });
+        let pipeline =
+            device_context
+                .device
+                .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                    label: None,
+                    layout: Some(&pipeline_layout),
+                    module: &shader,
+                    entry_point: "render_point_cs",
+                });
 
         Ok(PointCloudRenderer {
             point_cloud,
@@ -200,24 +223,24 @@ impl render_device::RenderDevice for PointCloudRenderer {
         //empty
     }
 
-    fn update_render(&mut self, _device: &wgpu::Device, _queue: &wgpu::Queue) {}
+    fn update_render(&mut self, device_context: &RefCell<render_device::RenderDeviceContext>) {}
 
     fn resize(
         &mut self,
         _config: &wgpu::SurfaceConfiguration,
-        _device: &wgpu::Device,
-        _queue: &wgpu::Queue,
+        device_context: &RefCell<render_device::RenderDeviceContext>,
     ) {
     }
 
     fn render(
         &mut self,
         back_buffer_view: &wgpu::TextureView,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        device_context: &RefCell<render_device::RenderDeviceContext>,
     ) {
-        let mut encoder =
-            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        let device_context = device_context.borrow();
+        let mut encoder = device_context
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
@@ -240,6 +263,6 @@ impl render_device::RenderDevice for PointCloudRenderer {
             });
         }
 
-        queue.submit(Some(encoder.finish()));
+        device_context.queue.submit(Some(encoder.finish()));
     }
 }

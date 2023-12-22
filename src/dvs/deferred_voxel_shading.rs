@@ -84,17 +84,17 @@ impl render_device::RenderDevice for DeferredVoxelShading {
 
     fn init(
         config: &wgpu::SurfaceConfiguration,
-        adapter: &wgpu::Adapter,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        device_context: &RefCell<render_device::RenderDeviceContext>,
     ) -> Result<Self> {
+        let device_context = device_context.borrow();
         let args = CommandLineArguments::parse();
-        let scene_objects = scene_object_loader::load_scene_objects(device, &args.obj_path)?;
+        let scene_objects =
+            scene_object_loader::load_scene_objects(&device_context.device, &args.obj_path)?;
         let mut passes: Vec<RefCell<Box<dyn render_pass::RenderPass>>> = vec![];
 
         let camera = Rc::new(RefCell::new(Camera {
             eye: glam::Vec3::new(0.0, 1.0, 3.0),
-            dir : glam::Vec3::new(0.0, 0.0, 1.0),
+            dir: glam::Vec3::new(0.0, 0.0, 1.0),
             aspect: config.width as f32 / config.height as f32,
             ..Default::default()
         }));
@@ -102,9 +102,9 @@ impl render_device::RenderDevice for DeferredVoxelShading {
 
         let voxelization_pass = voxelization::VoxelizationPass::create_pass(
             config,
-            adapter,
-            device,
-            queue,
+            &device_context.adapter,
+            &device_context.device,
+            &device_context.queue,
             camera.clone(),
             scene_objects,
         )?;
@@ -129,39 +129,42 @@ impl render_device::RenderDevice for DeferredVoxelShading {
         })
     }
 
-    fn update_render(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+    fn update_render(&mut self, device_context: &RefCell<render_device::RenderDeviceContext>) {
+        let device_context = device_context.borrow();
         self.camera_controller.update_camera(0.0);
-
         self.passes.iter().for_each(|pass| {
-            pass.borrow_mut()
-                .update_render(device, queue, &self.black_board.borrow_mut());
+            pass.borrow_mut().update_render(
+                &device_context.device,
+                &device_context.queue,
+                &self.black_board.borrow_mut(),
+            );
         })
     }
 
     fn resize(
         &mut self,
         config: &wgpu::SurfaceConfiguration,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        device_context: &RefCell<render_device::RenderDeviceContext>,
     ) {
+        let device_context = device_context.borrow();
         self.camera.borrow_mut().aspect = config.width as f32 / config.height as f32;
-
         self.passes.iter().for_each(|pass| {
-            pass.borrow_mut().on_resized(config, device, queue);
+            pass.borrow_mut()
+                .on_resized(config, &device_context.device, &device_context.queue);
         })
     }
 
     fn render(
         &mut self,
         back_buffer_view: &wgpu::TextureView,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        device_context: &RefCell<render_device::RenderDeviceContext>,
     ) {
+        let device_context = device_context.borrow();
         self.passes.iter().for_each(|pass| {
             pass.borrow_mut().render(
                 back_buffer_view,
-                device,
-                queue,
+                &device_context.device,
+                &device_context.queue,
                 &self.render_context.borrow(),
                 &self.black_board.borrow_mut(),
             );
