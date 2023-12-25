@@ -130,14 +130,10 @@ impl render_device::RenderDevice for DeferredVoxelShading {
     }
 
     fn update_render(&mut self, device_context: &RefCell<render_device::RenderDeviceContext>) {
-        let device_context = device_context.borrow();
         self.camera_controller.update_camera(0.0);
         self.passes.iter().for_each(|pass| {
-            pass.borrow_mut().update_render(
-                &device_context.device,
-                &device_context.queue,
-                &self.black_board.borrow_mut(),
-            );
+            pass.borrow_mut()
+                .update_render(&device_context, &self.black_board.borrow_mut());
         })
     }
 
@@ -146,11 +142,9 @@ impl render_device::RenderDevice for DeferredVoxelShading {
         config: &wgpu::SurfaceConfiguration,
         device_context: &RefCell<render_device::RenderDeviceContext>,
     ) {
-        let device_context = device_context.borrow();
         self.camera.borrow_mut().aspect = config.width as f32 / config.height as f32;
         self.passes.iter().for_each(|pass| {
-            pass.borrow_mut()
-                .on_resized(config, &device_context.device, &device_context.queue);
+            pass.borrow_mut().on_resized(config, &device_context);
         })
     }
 
@@ -159,15 +153,21 @@ impl render_device::RenderDevice for DeferredVoxelShading {
         back_buffer_view: &wgpu::TextureView,
         device_context: &RefCell<render_device::RenderDeviceContext>,
     ) {
-        let device_context = device_context.borrow();
+        let mut encoder: wgpu::CommandEncoder = device_context
+            .borrow()
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
         self.passes.iter().for_each(|pass| {
             pass.borrow_mut().render(
                 back_buffer_view,
-                &device_context.device,
-                &device_context.queue,
+                &mut encoder,
+                &device_context,
                 &self.render_context.borrow(),
                 &self.black_board.borrow_mut(),
             );
-        })
+        });
+
+        device_context.borrow().queue.submit(Some(encoder.finish()));
     }
 }

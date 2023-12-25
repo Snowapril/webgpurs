@@ -1,6 +1,7 @@
 use crate::{
     pass::{black_board, render_context, render_pass},
     render_client::camera::Camera,
+    render_device,
     scene::scene_object,
 };
 use anyhow::Result;
@@ -33,12 +34,12 @@ impl render_pass::RenderPass for VoxelizationPass {
 
     fn update_render(
         &mut self,
-        _device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        device_context: &RefCell<render_device::RenderDeviceContext>,
         _black_board: &RefMut<black_board::BlackBoard>,
     ) {
+        let device_context = device_context.borrow();
         let view_proj = self.camera.borrow().build_view_proj_matrix();
-        queue.write_buffer(
+        device_context.queue.write_buffer(
             &self.camera_uniform_buffer,
             0,
             bytemuck::cast_slice(view_proj.as_ref()),
@@ -48,57 +49,50 @@ impl render_pass::RenderPass for VoxelizationPass {
     fn on_resized(
         &mut self,
         _config: &wgpu::SurfaceConfiguration,
-        _device: &wgpu::Device,
-        _queue: &wgpu::Queue,
+        _device_context: &RefCell<render_device::RenderDeviceContext>,
     ) {
     }
 
     fn render(
         &mut self,
         back_buffer_view: &wgpu::TextureView,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        device_context: &RefCell<render_device::RenderDeviceContext>,
         render_context: &Ref<render_context::RenderContext>,
         black_board: &RefMut<black_board::BlackBoard>,
     ) {
-        let mut encoder: wgpu::CommandEncoder =
-            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        {
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: back_buffer_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            rpass.set_pipeline(&self.pipeline);
-            rpass.set_bind_group(0, &self.bind_group_global, &[]);
+        let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: back_buffer_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.1,
+                        g: 0.2,
+                        b: 0.3,
+                        a: 1.0,
+                    }),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+        rpass.set_pipeline(&self.pipeline);
+        rpass.set_bind_group(0, &self.bind_group_global, &[]);
 
-            let num_scene_objects = self.scene_objects.len();
-            for index in 0..num_scene_objects {
-                rpass.set_bind_group(1, &self.bind_groups[index], &[]);
-                rpass.set_index_buffer(
-                    self.scene_objects[index].index_buffer.slice(..),
-                    wgpu::IndexFormat::Uint32,
-                );
-                rpass.set_vertex_buffer(0, self.scene_objects[index].vertex_buffer.slice(..));
-                rpass.draw_indexed(0..self.scene_objects[index].num_indices as u32, 0, 0..1);
-            }
+        let num_scene_objects = self.scene_objects.len();
+        for index in 0..num_scene_objects {
+            rpass.set_bind_group(1, &self.bind_groups[index], &[]);
+            rpass.set_index_buffer(
+                self.scene_objects[index].index_buffer.slice(..),
+                wgpu::IndexFormat::Uint32,
+            );
+            rpass.set_vertex_buffer(0, self.scene_objects[index].vertex_buffer.slice(..));
+            rpass.draw_indexed(0..self.scene_objects[index].num_indices as u32, 0, 0..1);
         }
-
-        queue.submit(Some(encoder.finish()));
     }
 }
 
