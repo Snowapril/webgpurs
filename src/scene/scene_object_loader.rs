@@ -1,6 +1,6 @@
 use crate::scene::scene_object;
 use anyhow::Result;
-use std::{fmt, path::Path};
+use std::{fmt, num::ParseFloatError, path::Path};
 
 pub fn load_scene_objects<P>(
     device: &wgpu::Device,
@@ -121,11 +121,23 @@ fn load_material(material: &tobj::Material) -> Result<scene_object::Material> {
         .shininess
         .ok_or_else(|| anyhow::Error::msg("Essential material field 'shininess' missing"))?;
 
+    let emissive =
+        if let Some((key, value)) = material.unknown_param.get_key_value(&String::from("Ke")) {
+            let emissive_value = value
+                .split(' ')
+                .map(|s| s.parse::<f32>())
+                .collect::<Result<Vec<f32>, ParseFloatError>>()?;
+            glam::Vec3::new(emissive_value[0], emissive_value[1], emissive_value[2])
+        } else {
+            glam::Vec3::new(0.0, 0.0, 0.0)
+        };
+
     Ok(scene_object::Material {
         name: material.name.clone(),
         ambient,
         diffuse,
         specular,
+        emissive,
         shininess,
     })
 }

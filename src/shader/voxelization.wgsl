@@ -17,6 +17,7 @@ struct Material {
     ambient : vec3<f32>,
     diffuse : vec3<f32>,
     specular : vec3<f32>,
+    emissive: vec3<f32>,
     shininess : f32,
 }
 

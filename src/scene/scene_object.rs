@@ -21,6 +21,7 @@ pub struct Material {
     pub(crate) ambient: glam::Vec3,
     pub(crate) diffuse: glam::Vec3,
     pub(crate) specular: glam::Vec3,
+    pub(crate) emissive: glam::Vec3,
     pub(crate) shininess: f32,
 }
 
@@ -31,6 +32,7 @@ impl Default for Material {
             ambient: glam::Vec3::new(0.8, 0.8, 0.8),
             diffuse: glam::Vec3::new(0.8, 0.8, 0.8),
             specular: glam::Vec3::new(1.0, 1.0, 1.0),
+            emissive: glam::Vec3::new(0.0, 0.0, 0.0),
             shininess: 0.5,
         }
     }
@@ -50,9 +52,10 @@ pub struct MaterialPod {
     ambient: [f32; 3],
     diffuse: [f32; 3],
     specular: [f32; 3],
+    emissive: [f32; 3],
     shininess: f32,
     #[allow(dead_code)]
-    _padding: [f32; 6], // TODO(snowapril) : how to aligning struct not like this in rust lang
+    _padding: [f32; 3], // TODO(snowapril) : how to aligning struct not like this in rust lang
 }
 
 fn create_vertex_pod(pos: glam::Vec3, normal: glam::Vec3, tex_coord: glam::Vec2) -> VertexPod {
@@ -80,8 +83,13 @@ fn create_material_pod(material: &Material) -> MaterialPod {
             material.specular[1],
             material.specular[2],
         ],
+        emissive: [
+            material.emissive[0],
+            material.emissive[1],
+            material.emissive[2],
+        ],
         shininess: material.shininess,
-        _padding: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        _padding: [0.0, 0.0, 0.0],
     }
 }
 
