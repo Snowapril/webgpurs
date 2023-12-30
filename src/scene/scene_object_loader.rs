@@ -125,6 +125,7 @@ fn load_material(material: &tobj::Material) -> Result<scene_object::Material> {
         if let Some((key, value)) = material.unknown_param.get_key_value(&String::from("Ke")) {
             let emissive_value = value
                 .split(' ')
+                .filter(|&x| x.is_empty() == false)
                 .map(|s| s.parse::<f32>())
                 .collect::<Result<Vec<f32>, ParseFloatError>>()?;
             glam::Vec3::new(emissive_value[0], emissive_value[1], emissive_value[2])
