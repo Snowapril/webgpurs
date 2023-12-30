@@ -34,6 +34,8 @@ impl RenderDeviceContext {
             gles_minor_version,
         });
         surface.pre_adapter(&instance, window);
+
+        // TODO(snowapril) : pick dedicated-gpu first.
         let adapter = wgpu::util::initialize_adapter_from_env_or_default(&instance, surface.get())
             .await
             .expect("No suitable GPU adapters found on the system!");

@@ -1,3 +1,14 @@
+//! Scene voxelization pass
+//!
+//! As wgpu does not support geometry shader, voxelization pass is composed of two step.
+//! 1. Voxel Axis Projection Pass
+//!     a. Project given each triangles into voxel axis to read-write buffer.
+//! 2. Voxelization Pass
+//!     a. Use read-write buffer generated from Voxel-Axis-Projection-Pass as vertex buffer
+//!         for this primitive input.
+//!     b. Store each attributes (albedo, normal, ..) to storage texture
+//!
+
 use crate::{
     pass::{black_board, render_context, render_pass},
     render_client::camera::Camera,
@@ -21,10 +32,9 @@ use wgpu::util::DeviceExt;
 pub struct VoxelizationPass {
     camera: Rc<RefCell<Camera>>,
     scene_objects: Vec<scene_object::SceneObject>,
-    bind_groups: Vec<wgpu::BindGroup>,
-    pipeline: wgpu::RenderPipeline,
     bind_group_global: wgpu::BindGroup,
     camera_uniform_buffer: wgpu::Buffer,
+    voxel_projection_pipeline: wgpu::ComputePipeline,
 }
 
 impl render_pass::RenderPass for VoxelizationPass {
@@ -105,117 +115,22 @@ impl VoxelizationPass {
         camera: Rc<RefCell<Camera>>,
         scene_objects_loaded: Vec<scene_object::SceneObject>,
     ) -> Result<Self> {
-        // Create pipeline layout
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: wgpu::BufferSize::new(64),
-                },
-                count: None,
-            }],
-        });
-
-        // Create other resources
-        let mx_total = Self::generate_matrix(config.width as f32 / config.height as f32);
-        let mx_ref: &[f32; 16] = mx_total.as_ref();
-        let camera_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Camera Uniform Buffer"),
-            contents: bytemuck::cast_slice(mx_ref),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        // Create bind group
-        let bind_group_global = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_uniform_buffer.as_entire_binding(),
-            }],
-            label: None,
-        });
-
-        let bind_group_layout_per_pass =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: None,
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(mem::size_of::<
-                            scene_object::MaterialPod,
-                        >() as u64),
-                    },
-                    count: None,
-                }],
+        let voxel_axis_projection_shader =
+            device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("VoxelAxisProjection Shader"),
+                source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!(
+                    "../shader/voxel_axis_projection.wgsl"
+                ))),
             });
-
-        let bind_groups = scene_objects_loaded
-            .iter()
-            .map(|scene_object| {
-                device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    layout: &bind_group_layout_per_pass,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: scene_object.material.as_entire_binding(),
-                    }],
-                    label: Some(format!("Material Buffer [ {} ]", scene_object.name).as_str()),
-                })
-            })
-            .collect::<Vec<wgpu::BindGroup>>();
-
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: None,
-            bind_group_layouts: &[&bind_group_layout, &bind_group_layout_per_pass],
-            push_constant_ranges: &[],
-        });
-
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
+        let voxelization_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Voxelization Shader"),
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!(
                 "../shader/voxelization.wgsl"
             ))),
         });
 
-        let input_layout = [wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<scene_object::VertexPod>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[wgpu::VertexAttribute {
-                format: wgpu::VertexFormat::Float32x3,
-                offset: 0,
-                shader_location: 0,
-            }],
-        }];
-
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: None,
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &input_layout,
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[Some(config.view_formats[0].into())],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                cull_mode: Some(wgpu::Face::Back),
-                front_face: wgpu::FrontFace::Cw,
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-        });
+        let (projection_bind_group_layout, projection_pipeline) =
+            Self::init_voxel_projection_pipeline(device, &shader)?;
 
         Ok(Self {
             camera,
@@ -235,5 +150,76 @@ impl VoxelizationPass {
             glam::Vec3::Z,
         );
         projection * view
+    }
+
+    /// Create voxel axis projection compute pipeline
+    ///
+    /// As webgpu don't have geometry shader, for projecting given vertices into voxel axis
+    /// we use compute pass for projecting each vertices into uav and use it as vertex buffer for
+    /// the next rasterization pass
+    fn init_voxel_projection_pipeline(
+        device: &wgpu::Device,
+        shader_module: &wgpu::ShaderModule,
+    ) -> Result<(wgpu::BindGroupLayout, wgpu::ComputePipeline)> {
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Voxel Axis Projection BindGroupLayout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(64),
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(64),
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(12),
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(12),
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Voxel Axis Projection PipelineLayout"),
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let compute_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("Voxel Axis Projection Pipeline"),
+            layout: Some(&pipeline_layout),
+            module: shader_module,
+            entry_point: "voxel_projection_cs",
+        });
+
+        Ok((bind_group_layout, compute_pipeline))
     }
 }
