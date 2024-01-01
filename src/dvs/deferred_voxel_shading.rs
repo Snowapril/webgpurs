@@ -35,7 +35,9 @@ pub struct DeferredVoxelShading {
 
 impl render_device::RenderDevice for DeferredVoxelShading {
     fn optional_features() -> wgpu::Features {
-        wgpu::Features::BUFFER_BINDING_ARRAY | wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY
+        wgpu::Features::BUFFER_BINDING_ARRAY | 
+        wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY |
+        wgpu::Features::PUSH_CONSTANTS
     }
 
     fn required_downlevel_capabilities() -> wgpu::DownlevelCapabilities {
@@ -58,7 +60,7 @@ impl render_device::RenderDevice for DeferredVoxelShading {
             max_dynamic_storage_buffers_per_pipeline_layout: 4,
             max_sampled_textures_per_shader_stage: 16,
             max_samplers_per_shader_stage: 16,
-            max_storage_buffers_per_shader_stage: 4,
+            max_storage_buffers_per_shader_stage: 8,
             max_storage_textures_per_shader_stage: 4,
             max_uniform_buffers_per_shader_stage: 12,
             max_uniform_buffer_binding_size: 16 << 10,
@@ -66,7 +68,7 @@ impl render_device::RenderDevice for DeferredVoxelShading {
             max_vertex_buffers: 8,
             max_vertex_attributes: 16,
             max_vertex_buffer_array_stride: 2048,
-            max_push_constant_size: 0,
+            max_push_constant_size: 32,
             min_uniform_buffer_offset_alignment: 256,
             min_storage_buffer_offset_alignment: 256,
             max_inter_stage_shader_components: 60,
