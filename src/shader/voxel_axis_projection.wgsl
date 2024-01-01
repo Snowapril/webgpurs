@@ -8,9 +8,8 @@
 @group(1) @binding(2) var<storage, read> texcoords: array<vec3<f32>>;
 @group(1) @binding(3) var<storage, read_write> projected_position: array<vec3<f32>>;
 @group(1) @binding(4) var<storage, read_write> projected_world_position: array<vec3<f32>>;
-@group(1) @binding(5) var<storage, read_write> projected_normals: array<vec3<f32>>;
-@group(1) @binding(6) var<storage, read_write> projected_texcoords: array<vec3<f32>>;
-@group(1) @binding(7) var<storage, read_write> traignel_aabb: array<vec4<f32>>;
+@group(1) @binding(5) var<storage, read_write> projected_texcoords: array<vec3<f32>>;
+@group(1) @binding(6) var<storage, read_write> traignel_aabb: array<vec4<f32>>;
 
 // select axis that generate biggest projection plane for each voxel faces
 fn calculate_axis(positions : array<vec4<f32>, 3>) -> u32 {
@@ -51,7 +50,7 @@ struct VoxelConstants {
 var<push_constant> voxel_constants : VoxelConstants;
 
 @compute
-@workgroup_size(1)
+@workgroup_size(64)
 fn voxel_projection_cs(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let num_total_vertices = arrayLength(&positions);
     let tid = global_id.x;
@@ -64,7 +63,7 @@ fn voxel_projection_cs(@builtin(global_invocation_id) global_id: vec3<u32>) {
         model_matrix * vec4(positions[tid * 3u + 1u], 1.0), 
         model_matrix * vec4(positions[tid * 3u + 2u], 1.0) 
     );
-    let normals = array<vec4<f32>, 3>( 
+    var normals = array<vec4<f32>, 3>( 
         normal_matrix * vec4(normals[tid * 3u], 1.0),
         normal_matrix * vec4(normals[tid * 3u + 1u], 1.0),
         normal_matrix * vec4(normals[tid * 3u + 2u], 1.0) 
@@ -122,11 +121,33 @@ fn voxel_projection_cs(@builtin(global_invocation_id) global_id: vec3<u32>) {
         vec4<f32>(vec3<f32>(intersection[2].xy, z[2]), clip_space_positions[2].w),
     );
 
-    for (var i = 0u; i < 3u; i++) {
-        let voxel_pos = view_projection_matrix_inverse * dilated_positions[i];
-        let transformed_voxel_pos = vec4<f32>(voxel_pos.xyz / voxel_pos.w - voxel_constants.world_min_point, voxel_pos.w) * voxel_constants.voxel_scale;
-        projected_position[tid * 3u + i] = dilated_positions[i].xyz;
-        projected_normals[tid * 3u + i] = normals[tid * 3u + i];
-        projected_world_position[tid * 3u + i] = transformed_voxel_pos.xyz * voxel_constants.volume_dim;
-    }
+    // [manual unroll]
+    //for (var i = 0u; i < 3u; i++) {
+    //    let voxel_pos = view_projection_matrix_inverse * dilated_positions[i];
+    //    let transformed_voxel_pos = vec4<f32>(voxel_pos.xyz / voxel_pos.w - voxel_constants.world_min_point, voxel_pos.w) * voxel_constants.voxel_scale;
+    //    projected_position[tid * 3u + i] = dilated_positions[i].xyz;
+    //    projected_normals[tid * 3u + i] = normals[tid * 3u + i];
+    //    projected_world_position[tid * 3u + i] = transformed_voxel_pos.xyz * voxel_constants.volume_dim;
+    //}
+
+    var voxel_positions = array<vec4<f32>, 3>(
+        view_projection_matrix_inverse * dilated_positions[0],
+        view_projection_matrix_inverse * dilated_positions[1],
+        view_projection_matrix_inverse * dilated_positions[2]
+    );
+
+    var transformed_voxel_pos = array<vec4<f32>, 3>(
+        vec4<f32>(voxel_positions[0].xyz / voxel_positions[0].w - voxel_constants.world_min_point, voxel_positions[0].w) * voxel_constants.voxel_scale,
+        vec4<f32>(voxel_positions[1].xyz / voxel_positions[1].w - voxel_constants.world_min_point, voxel_positions[1].w) * voxel_constants.voxel_scale,
+        vec4<f32>(voxel_positions[2].xyz / voxel_positions[2].w - voxel_constants.world_min_point, voxel_positions[2].w) * voxel_constants.voxel_scale,
+    );
+
+    projected_position[tid * 3u] = dilated_positions[0].xyz;
+    projected_world_position[tid * 3u] = transformed_voxel_pos[0].xyz * f32(voxel_constants.volume_dim);
+
+    projected_position[tid * 3u + 1u] = dilated_positions[1].xyz;
+    projected_world_position[tid * 3u + 1u] = transformed_voxel_pos[1].xyz * f32(voxel_constants.volume_dim);
+
+    projected_position[tid * 3u + 2u] = dilated_positions[2].xyz;
+    projected_world_position[tid * 3u + 2u] = transformed_voxel_pos[2].xyz * f32(voxel_constants.volume_dim);
 }
