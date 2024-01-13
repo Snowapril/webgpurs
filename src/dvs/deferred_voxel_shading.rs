@@ -35,9 +35,9 @@ pub struct DeferredVoxelShading {
 
 impl render_device::RenderDevice for DeferredVoxelShading {
     fn optional_features() -> wgpu::Features {
-        wgpu::Features::BUFFER_BINDING_ARRAY | 
-        wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY |
-        wgpu::Features::PUSH_CONSTANTS
+        wgpu::Features::BUFFER_BINDING_ARRAY
+            | wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY
+            | wgpu::Features::PUSH_CONSTANTS
     }
 
     fn required_downlevel_capabilities() -> wgpu::DownlevelCapabilities {

@@ -9,7 +9,7 @@ repository = "https://github.com/snowapril/webgpurs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-wgpu = "0.18.0"
+wgpu = { version = "0.18.0", features= ["spirv"] }
 bytemuck = { version = "1.14", features = ["derive"] }
 env_logger = "0.10"
 pollster = "0.3"
@@ -29,6 +29,8 @@ tobj = "4.0.0"
 # For e57 loader
 e57 = "0.9.0"
 ahash = "0.8.6"
+
+shaderc = "0.8"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.7"

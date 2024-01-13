@@ -14,6 +14,7 @@ use crate::{
     render_client::camera::Camera,
     render_device,
     scene::scene_object,
+    shader_pipeline::shader,
 };
 use anyhow::Result;
 use bytemuck::{Pod, Zeroable};
@@ -32,7 +33,7 @@ use wgpu::util::DeviceExt;
 pub struct VoxelizationPass {
     camera: Rc<RefCell<Camera>>,
     scene_objects: Vec<scene_object::SceneObject>,
-    projection_pipeline : wgpu::ComputePipeline,
+    projection_pipeline: wgpu::ComputePipeline,
     bind_group: wgpu::BindGroup,
     bind_group_per_mesh: wgpu::BindGroup,
 }
@@ -69,9 +70,9 @@ impl render_pass::RenderPass for VoxelizationPass {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
         {
-            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor{
+            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: None,
-                timestamp_writes: None
+                timestamp_writes: None,
             });
 
             cpass.set_pipeline(&self.projection_pipeline);
@@ -91,13 +92,14 @@ impl VoxelizationPass {
         camera: Rc<RefCell<Camera>>,
         scene_objects_loaded: Vec<scene_object::SceneObject>,
     ) -> Result<Self> {
-        let voxel_axis_projection_shader =
-            device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("VoxelAxisProjection Shader"),
-                source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!(
-                    "../shader/voxel_axis_projection.wgsl"
-                ))),
-            });
+        let voxel_axis_projection_shader = shader::create_shader_module(
+            device,
+            include_str!("../shader/glsl/voxel_axis_projection.glsl"),
+            "voxel_axis_projection.glsl",
+            "main",
+            shaderc::ShaderKind::Compute,
+        )?;
+
         let voxelization_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Voxelization Shader"),
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!(
@@ -105,16 +107,19 @@ impl VoxelizationPass {
             ))),
         });
 
-        let (projection_bind_group_layout, projection_bind_group_layout_per_mesh, projection_pipeline) =
-            Self::init_voxel_projection_pipeline(device, &voxel_axis_projection_shader)?;
+        let (
+            projection_bind_group_layout,
+            projection_bind_group_layout_per_mesh,
+            projection_pipeline,
+        ) = Self::init_voxel_projection_pipeline(device, &voxel_axis_projection_shader)?;
 
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor{
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("VoxelAxisProjection BindGroup"),
             layout: &projection_bind_group_layout,
             entries: &[],
         });
 
-        let bind_group_per_mesh = device.create_bind_group(&wgpu::BindGroupDescriptor{
+        let bind_group_per_mesh = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("VoxelAxisProjection BindGroupPerMesh"),
             layout: &projection_bind_group_layout_per_mesh,
             entries: &[],
@@ -125,7 +130,7 @@ impl VoxelizationPass {
             scene_objects: scene_objects_loaded,
             projection_pipeline,
             bind_group,
-            bind_group_per_mesh
+            bind_group_per_mesh,
         })
     }
 
@@ -147,7 +152,11 @@ impl VoxelizationPass {
     fn init_voxel_projection_pipeline(
         device: &wgpu::Device,
         shader_module: &wgpu::ShaderModule,
-    ) -> Result<(wgpu::BindGroupLayout, wgpu::BindGroupLayout, wgpu::ComputePipeline)> {
+    ) -> Result<(
+        wgpu::BindGroupLayout,
+        wgpu::BindGroupLayout,
+        wgpu::ComputePipeline,
+    )> {
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Voxel Axis Projection BindGroupLayout"),
             entries: &[
@@ -194,81 +203,82 @@ impl VoxelizationPass {
             ],
         });
 
-        let bind_group_layout_per_mesh = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Voxel Axis Projection BindGroupLayoutPerMesh"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage{ read_only : true },
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(16),
+        let bind_group_layout_per_mesh =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Voxel Axis Projection BindGroupLayoutPerMesh"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(16),
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage{ read_only : true },
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(16),
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(16),
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage{ read_only : true },
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(16),
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(16),
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage{ read_only : false },
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(16),
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(16),
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage{ read_only : false },
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(16),
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(16),
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 5,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage{ read_only : false },
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(16),
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 5,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(16),
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 6,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage{ read_only : false },
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(16),
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 6,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(16),
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-            ],
-        });
+                ],
+            });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Voxel Axis Projection PipelineLayout"),
@@ -286,6 +296,10 @@ impl VoxelizationPass {
             entry_point: "voxel_projection_cs",
         });
 
-        Ok((bind_group_layout, bind_group_layout_per_mesh, compute_pipeline))
+        Ok((
+            bind_group_layout,
+            bind_group_layout_per_mesh,
+            compute_pipeline,
+        ))
     }
 }

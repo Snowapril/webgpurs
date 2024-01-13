@@ -1,9 +1,11 @@
+extern crate shaderc;
 mod dvs;
 mod pass;
 mod point_cloud;
 mod render_client;
 mod samples;
 mod scene;
+mod shader_pipeline;
 mod utils;
 
 use std::{cell::RefCell, sync::Arc};
