@@ -54,6 +54,12 @@ impl EventLoopWrapper {
 
 async fn start<E: render_device::RenderDevice>(title: &str) {
     logger::init_logger();
+
+    log::debug!(
+        "Enabled backends: {:?}",
+        wgpu::Instance::enabled_backend_features()
+    );
+
     let window_loop = EventLoopWrapper::new(title);
     let mut surface = surface_wrapper::SurfaceWrapper::new();
     let context = render_device::RenderDeviceContext::init_async::<E>(
@@ -62,6 +68,7 @@ async fn start<E: render_device::RenderDevice>(title: &str) {
     )
     .await;
     let context = RefCell::new(context);
+
     let mut frame_counter = counter::FrameCounter::new();
 
     // We wait to create the render_device until we have a valid surface.
@@ -82,9 +89,6 @@ async fn start<E: render_device::RenderDevice>(title: &str) {
     let _ = (event_loop_function)(
         window_loop.event_loop,
         move |event: Event<()>, target: &EventLoopWindowTarget<()>| {
-            // We set to refresh as fast as possible.
-            target.set_control_flow(ControlFlow::Poll);
-
             match event {
                 ref e if surface_wrapper::SurfaceWrapper::start_condition(e) => {
                     surface.resume(&context, window_loop.window.clone(), E::SRGB);
@@ -133,6 +137,14 @@ async fn start<E: render_device::RenderDevice>(title: &str) {
                         println!("{:#?}", context.borrow().instance.generate_report());
                     }
                     WindowEvent::RedrawRequested => {
+                        // On MacOS, currently redraw requested comes in _before_ Init does.
+                        // If this happens, just drop the requested redraw on the floor.
+                        //
+                        // See https://github.com/rust-windowing/winit/issues/3235 for some discussion
+                        if render_device.is_none() {
+                            return;
+                        }
+
                         frame_counter.update();
 
                         let frame = surface.acquire(&context);
@@ -168,9 +180,9 @@ pub fn run<E: render_device::RenderDevice>(title: &'static str) {
 }
 
 fn main() {
-    // run::<samples::cube_scene_renderer::CubeSceneRenderer>("cube");
-    //run::<point_cloud_renderer::PointCloudRenderer>("PointCloudRenderer");
-    scene::obj_loader::load_obj("./resources/CornellBox-Original.obj");
+    run::<samples::cube_scene_renderer::CubeSceneRenderer>("cube");
+    // run::<point_cloud_renderer::PointCloudRenderer>("PointCloudRenderer");
+    // scene::obj_loader::load_obj("./resources/CornellBox-Original.obj");
 
-    run::<deferred_voxel_shading::DeferredVoxelShading>("DeferredVoxelShading");
+    // run::<deferred_voxel_shading::DeferredVoxelShading>("DeferredVoxelShading");
 }

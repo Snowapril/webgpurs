@@ -17,7 +17,7 @@ pub struct SurfaceWrapper {
     config: Option<wgpu::SurfaceConfiguration>,
 }
 
-impl  SurfaceWrapper {
+impl SurfaceWrapper {
     /// Create a new surface wrapper with no surface or configuration.
     pub fn new() -> Self {
         Self {
@@ -32,10 +32,10 @@ impl  SurfaceWrapper {
     /// a surface (and hence a canvas) to be present to create the adapter.
     ///
     /// We cannot unconditionally create a surface here, as Android requires
-    /// us to wait until we recieve the `Resumed` event to do so.
-    pub fn pre_adapter<'window>(&mut self, instance: &Instance, window: Arc<Window>) {
+    /// us to wait until we receive the `Resumed` event to do so.
+    pub fn pre_adapter(&mut self, instance: &Instance, window: Arc<Window>) {
         if cfg!(target_arch = "wasm32") {
-            self.surface = Some(unsafe { instance.create_surface(window) }.unwrap());
+            self.surface = Some(instance.create_surface(window).unwrap());
         }
     }
 
@@ -50,7 +50,7 @@ impl  SurfaceWrapper {
         }
     }
 
-    /// Called when an event which matches [`Self::start_condition`] is recieved.
+    /// Called when an event which matches [`Self::start_condition`] is received.
     ///
     /// On all native platforms, this is where we create the surface.
     ///
@@ -65,13 +65,14 @@ impl  SurfaceWrapper {
         let window_size = window.inner_size();
         let width = window_size.width.max(1);
         let height = window_size.height.max(1);
-        let context = context.borrow();
 
         log::info!("Surface resume {window_size:?}");
 
+        let context = context.borrow();
+
         // We didn't create the surface in pre_adapter, so we need to do so now.
         if !cfg!(target_arch = "wasm32") {
-            self.surface = Some(unsafe { context.instance.create_surface(window) }.unwrap());
+            self.surface = Some(context.instance.create_surface(window).unwrap());
         }
 
         // From here on, self.surface should be Some.
@@ -121,7 +122,17 @@ impl  SurfaceWrapper {
 
         match surface.get_current_texture() {
             Ok(frame) => frame,
-            Err(_) => {
+            // If we timed out, just try again
+            Err(wgpu::SurfaceError::Timeout) => surface
+                .get_current_texture()
+                .expect("Failed to acquire next surface texture!"),
+            Err(
+                // If the surface is outdated, or was lost, reconfigure it.
+                wgpu::SurfaceError::Outdated
+                | wgpu::SurfaceError::Lost
+                // If OutOfMemory happens, reconfiguring may not help, but we might as well try
+                | wgpu::SurfaceError::OutOfMemory,
+            ) => {
                 surface.configure(&context.borrow().device, self.config());
                 surface
                     .get_current_texture()

@@ -166,7 +166,7 @@ impl VoxelizationPass {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(64),
+                        min_binding_size: wgpu::BufferSize::new(256),
                     },
                     count: None,
                 },
@@ -294,7 +294,7 @@ impl VoxelizationPass {
             layout: Some(&pipeline_layout),
             module: shader_module,
             compilation_options: Default::default(),
-            entry_point: "voxel_projection_cs",
+            entry_point: "main",
         });
 
         Ok((

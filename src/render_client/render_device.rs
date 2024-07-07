@@ -22,8 +22,7 @@ impl RenderDeviceContext {
     ) -> Self {
         log::info!("Initializing wgpu...");
 
-        let backends =
-            wgpu::util::backend_bits_from_env().unwrap_or_else(|| wgpu::Backends::PRIMARY);
+        let backends = wgpu::util::backend_bits_from_env().unwrap_or_default();
         let dx12_shader_compiler = wgpu::util::dx12_shader_compiler_from_env().unwrap_or_default();
         let gles_minor_version = wgpu::util::gles_minor_version_from_env().unwrap_or_default();
 
@@ -34,8 +33,6 @@ impl RenderDeviceContext {
             gles_minor_version,
         });
         surface.pre_adapter(&instance, window);
-
-        // TODO(snowapril) : pick dedicated-gpu first.
         let adapter = wgpu::util::initialize_adapter_from_env_or_default(&instance, surface.get())
             .await
             .expect("No suitable GPU adapters found on the system!");
@@ -48,7 +45,7 @@ impl RenderDeviceContext {
         let adapter_features = adapter.features();
         assert!(
             adapter_features.contains(required_features),
-            "Adapter does not support required features for this render_device: {:?}",
+            "Adapter does not support required features for this application: {:?}",
             required_features - adapter_features
         );
 
@@ -56,14 +53,14 @@ impl RenderDeviceContext {
         let downlevel_capabilities = adapter.get_downlevel_capabilities();
         assert!(
             downlevel_capabilities.shader_model >= required_downlevel_capabilities.shader_model,
-            "Adapter does not support the minimum shader model required to run this render_device: {:?}",
+            "Adapter does not support the minimum shader model required to run this application: {:?}",
             required_downlevel_capabilities.shader_model
         );
         assert!(
             downlevel_capabilities
                 .flags
                 .contains(required_downlevel_capabilities.flags),
-            "Adapter does not support the downlevel capabilities required to run this render_device: {:?}",
+            "Adapter does not support the downlevel capabilities required to run this application: {:?}",
             required_downlevel_capabilities.flags - downlevel_capabilities.flags
         );
 
