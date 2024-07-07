@@ -13,11 +13,11 @@ use crate::render_device;
 ///
 /// As surface usage varies per platform, wrapping this up cleans up the event loop code.
 pub struct SurfaceWrapper {
-    surface: Option<wgpu::Surface>,
+    surface: Option<wgpu::Surface<'static>>,
     config: Option<wgpu::SurfaceConfiguration>,
 }
 
-impl SurfaceWrapper {
+impl  SurfaceWrapper {
     /// Create a new surface wrapper with no surface or configuration.
     pub fn new() -> Self {
         Self {
@@ -33,9 +33,9 @@ impl SurfaceWrapper {
     ///
     /// We cannot unconditionally create a surface here, as Android requires
     /// us to wait until we recieve the `Resumed` event to do so.
-    pub fn pre_adapter(&mut self, instance: &Instance, window: Arc<Window>) {
+    pub fn pre_adapter<'window>(&mut self, instance: &Instance, window: Arc<Window>) {
         if cfg!(target_arch = "wasm32") {
-            self.surface = Some(unsafe { instance.create_surface(&window) }.unwrap());
+            self.surface = Some(unsafe { instance.create_surface(window) }.unwrap());
         }
     }
 
@@ -71,7 +71,7 @@ impl SurfaceWrapper {
 
         // We didn't create the surface in pre_adapter, so we need to do so now.
         if !cfg!(target_arch = "wasm32") {
-            self.surface = Some(unsafe { context.instance.create_surface(&window) }.unwrap());
+            self.surface = Some(unsafe { context.instance.create_surface(window) }.unwrap());
         }
 
         // From here on, self.surface should be Some.

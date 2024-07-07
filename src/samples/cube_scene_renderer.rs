@@ -273,11 +273,13 @@ impl render_device::RenderDevice for CubeSceneRenderer {
                     vertex: wgpu::VertexState {
                         module: &shader,
                         entry_point: "vs_main",
+                        compilation_options: Default::default(),
                         buffers: &vertex_buffers,
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
                         entry_point: "fs_main",
+                        compilation_options: Default::default(),
                         targets: &[Some(config.view_formats[0].into())],
                     }),
                     primitive: wgpu::PrimitiveState {
@@ -303,11 +305,13 @@ impl render_device::RenderDevice for CubeSceneRenderer {
                         vertex: wgpu::VertexState {
                             module: &shader,
                             entry_point: "vs_main",
+                            compilation_options: Default::default(),
                             buffers: &vertex_buffers,
                         },
                         fragment: Some(wgpu::FragmentState {
                             module: &shader,
                             entry_point: "fs_wire",
+                            compilation_options: Default::default(),
                             targets: &[Some(wgpu::ColorTargetState {
                                 format: config.view_formats[0],
                                 blend: Some(wgpu::BlendState {

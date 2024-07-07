@@ -9,17 +9,17 @@ repository = "https://github.com/snowapril/webgpurs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-wgpu = { version = "0.18.0", features= ["spirv"] }
+wgpu = { version = "0.20.1", features= ["spirv"] }
 bytemuck = { version = "1.14", features = ["derive"] }
 env_logger = "0.10"
 pollster = "0.3"
-winit = {version = "0.29", features = ["rwh_05"]}
+winit = {version = "0.29.0", features = ["rwh_05"]}
 glam = "0.24.2"
 cfg-if = "1"
 log = "0.4"
 png = "0.17.10"
 web-time = "0.2.3"
-glium = "0.26"
+glium = "0.34.0"
 obj-rs = { version = "0.6", features = ["glium"] }
 anyhow = "1"
 ryu = "1"

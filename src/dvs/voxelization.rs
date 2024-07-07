@@ -293,6 +293,7 @@ impl VoxelizationPass {
             label: Some("Voxel Axis Projection Pipeline"),
             layout: Some(&pipeline_layout),
             module: shader_module,
+            compilation_options: Default::default(),
             entry_point: "voxel_projection_cs",
         });
 

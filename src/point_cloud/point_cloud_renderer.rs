@@ -209,6 +209,7 @@ impl render_device::RenderDevice for PointCloudRenderer {
                     layout: Some(&pipeline_layout),
                     module: &shader,
                     entry_point: "render_point_cs",
+                    compilation_options: Default::default(),
                 });
 
         Ok(PointCloudRenderer {
